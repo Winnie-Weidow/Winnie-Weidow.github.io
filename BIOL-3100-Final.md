@@ -324,7 +324,6 @@ The data for this project was found on Kaggle. Techniques learned in BIOL-3100 w
 ```
 ## [1] 4929.135
 ```
-#mse
 
 
 

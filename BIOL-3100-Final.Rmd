@@ -143,7 +143,8 @@ dat_test %>%
   labs(title = 'Prediction Accuracy',
        x = 'Actual Brain Weight',
        y = 'Predicted Brain Weight')+
-  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed")#abline shows what we'd want if the model were perfect.
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed")+#abline shows what we'd want if the model were perfect.
+  theme_minimal()
 ```
 
 ```{r}
@@ -151,9 +152,11 @@ categorized_dat %>%
   ggplot(aes(x = Head.Size.cm.3., y = Predictions, color = Gender)) +
   geom_point(alpha = 0.5) +
   geom_smooth(method = "lm", se = FALSE) +
-  labs(title = "Predicted Brain Weight by Gender",
+  labs(title = "Predicted Brain Weight by Sex",
        x = "Head Size (cm^3)",
-       y = "Predicted Brain Weight")
+       y = "Predicted Brain Weight",
+       color = "Sex")+
+  theme_minimal()
 ```
 
 ```{r}
@@ -161,9 +164,11 @@ categorized_dat %>%
   ggplot(aes(x = Head.Size.cm.3., y = Predictions, color = Age.Range)) +
   geom_point(alpha = 0.5) +
   geom_smooth(method = "lm", se = FALSE) +
-  labs(title = "Predicted Brain Weight by Age Range",
+  labs(title = "Predicted Brain Weight by Age",
        x = "Head Size (cm^3)",
-       y = "Predicted Brain Weight")
+       y = "Predicted Brain Weight",
+       color = "Age")+
+  theme_minimal()
 ```
 #Plotting the model with the real data
 ```{r}
@@ -181,9 +186,8 @@ categorized_dat %>%
 
 ```{r}
 mse <- mean((categorized_dat$Brain.Weight.grams. - categorized_dat$Predictions)^2)
-print(mse)
+print(mse)#mse
 ```
-#mse
 
 
 
