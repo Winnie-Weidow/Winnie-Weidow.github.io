@@ -1,0 +1,201 @@
+---
+title: "Making Predictions About Brain Weight"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+## Introduction
+
+The objective of this project is to analyze data related to brain weight and head size and how it differs between male versus female, and adult versus juvenile humans.
+
+## Background
+
+The data for this project was found on Kaggle. Techniques learned in BIOL-3100 will be used to clean and analyze the data, as well as make models and predictions.
+
+## Data
+## Loading Libraries  
+I used the tidyverse, GGally, ggplot2, MASS, caret, and easystats packages.  
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(GGally)
+library(ggplot2)
+library(MASS)
+library(caret)
+library(easystats)
+```
+To tidy the data, I used the mutate() and case_when() functions to change the sex data from numeric values of "1" and "2" to "Male" and "Female," and the age range data from numeric values of "1" and "2" to "Minor" and "Adult."   
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+brain_dat <- read.csv('FinalProject_Dataset.csv.csv')
+
+categorized_dat <- brain_dat %>% 
+  mutate(Gender = case_when(Gender == 1 ~ "Male",
+                            Gender == 2 ~ "Female"),
+         Age.Range = case_when(Age.Range == 1 ~ "Minor",
+                               Age.Range == 2 ~ "Adult"))
+```
+## Visualizing Relationships  
+The relationship between head size and brain weight appears linear with normal distributions. GLM modeling will be used.  
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+ggpairs(categorized_dat)
+#apparent linear trend between head size and brain weight; normal distribution.
+
+str(categorized_dat)
+dim(categorized_dat)#237 4
+
+#Visualizing the relationship between head size and brain weight.
+categorized_dat %>% 
+  ggplot(aes(x = Brain.Weight.grams., y = Head.Size.cm.3.))+
+  geom_point()+
+  geom_smooth(method = 'lm', se = F)+
+  theme_minimal()+
+  labs(title = 'Head Size Versus Brain Weight with Trend Line',
+       x = 'Brain Weight (g)',
+       y = 'Head Size (cm^3)')
+
+#Visualizing the distributions
+brain_dat %>% 
+  mutate(Gender = as.factor(Gender)) %>% 
+  ggplot(aes(x = Head.Size.cm.3., fill = Gender)) +
+  geom_histogram(color = "black", position = "dodge") +
+  labs(
+    title = "Head Size Distribution by Sex",
+    x = "Head Size (cm^3)",
+    y = "Frequency",
+    fill = "Sex"
+  ) +
+  geom_vline(aes(xintercept = mean(Head.Size.cm.3.)), color = "red", linetype = "dashed") +
+  theme_light() +
+  scale_fill_manual(values = c("skyblue", "darkblue"),
+                    labels = c("Male", "Female")) +  # Custom color for fill
+  theme(legend.position = "right")  # Position legend at the top
+
+brain_dat %>% 
+  mutate(Gender = as.factor(Gender)) %>% 
+  ggplot(aes(x = Brain.Weight.grams., fill = Gender)) +
+  geom_histogram(color = "black", position = "dodge") +
+  labs(
+    title = "Brain Weight Distribution by Sex",
+    x = "Brain Weight (g)",
+    y = "Frequency",
+    fill = "Sex"
+  ) +
+  geom_vline(aes(xintercept = mean(Brain.Weight.grams.)), color = "red", linetype = "dashed") +
+  theme_light() +
+  scale_fill_manual(values = c("orange", "maroon"),
+                    labels = c("Male", "Female")) +  # Custom color for fill
+  theme(legend.position = "right")  # Position legend at the top
+```
+## Finding the best model  
+The stepAIC() function was used to find a stepwise model. The best model was determined to have the following formula: Brain.Weight.grams. ~ Gender + Age.Range + Head.Size.cm.3. + Gender:Age.Range + Age.Range:Head.Size.cm.3.  
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+full_model <- glm(data = categorized_dat,
+                  formula = Brain.Weight.grams. ~ Gender*Age.Range*Head.Size.cm.3.)#do all the possibilities in a full model.
+
+summary(full_model)
+stepwise_mod <- stepAIC(full_model, direction = 'both')#this function checks all possibilities and chooses the best model.
+stepwise_mod$formula
+#Brain.Weight.grams. ~ Gender + Age.Range + Head.Size.cm.3. + 
+#Gender:Age.Range + Age.Range:Head.Size.cm.3.
+
+best_model <- glm(data = categorized_dat,
+                  formula = stepwise_mod$formula)
+
+summary(best_model)
+predict(best_model)
+
+
+categorized_dat$Predictions <- predict(best_model)
+```
+## Training the model  
+A data partition was created so a training and testing data set could be used to train the model and make it better. A residuals column was calculated and a residuals plot was created. The residuals plot looked good. The residuals were centered around zero and didn't fan out or curve, so there was no big red flag. It suggested the linear model was reasonably appropriate for the data.  
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+summary(categorized_dat$Head.Size.cm.3.)
+id <- createDataPartition(categorized_dat$Head.Size.cm.3., list = F)
+dat_train <- categorized_dat[id, ]
+dim(dat_train)#119 5
+dim(categorized_dat)#237 5
+
+dat_test <- categorized_dat[-id, ]
+
+train_mod <- glm(data = dat_train,
+                 formula = stepwise_mod$formula)
+dat_test$pred <- predict(train_mod, dat_test)
+
+actual <- dat_test$Brain.Weight.grams.
+predicted <- dat_test$pred
+
+dat_test$residuals <- actual - predicted
+
+ggplot(dat_test, aes(x = pred, y = residuals)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs Fitted",
+       x = "Predicted Brain Weight",
+       y = "Residuals") +
+  theme_minimal()
+#The residuals plot looks pretty good. The residuals are centered around zero and don't fan out or curve, so there's no big red flag. It suggests the linear model is reasonably appropriate for the data.
+
+dat_test %>% 
+  ggplot(aes(x = Brain.Weight.grams., y = pred))+
+  geom_point(alpha = 0.6)+
+  geom_smooth(method = 'lm', se = F)+
+  labs(title = 'Prediction Accuracy',
+       x = 'Actual Brain Weight',
+       y = 'Predicted Brain Weight')+
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed")+#abline shows what we'd want if the model were perfect.
+  theme_minimal()
+```  
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+categorized_dat %>% 
+  ggplot(aes(x = Head.Size.cm.3., y = Predictions, color = Gender)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Predicted Brain Weight by Sex",
+       x = "Head Size (cm^3)",
+       y = "Predicted Brain Weight",
+       color = "Sex")+
+  theme_minimal()
+```  
+ 
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+categorized_dat %>% 
+  ggplot(aes(x = Head.Size.cm.3., y = Predictions, color = Age.Range)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Predicted Brain Weight by Age",
+       x = "Head Size (cm^3)",
+       y = "Predicted Brain Weight",
+       color = "Age")+
+  theme_minimal()
+```  
+It appears that sex and age contribute significantly to the predictions. There are separate trend lines for Males, Females, Adults, and Minors. Males are predicted to have greater brain weights than females, and adults are predicted to have greater brain weights than minors. The model accounts for these factors.  
+## Plotting the model with the real data  
+There is a good general trend, and the model captures the positive linear relationship. However, the model doesn't fully explain all of the variation. In the future, including more predictors or interaction terms could improve the accuracy of the model.  
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+categorized_dat %>% 
+  ggplot(aes(x = Brain.Weight.grams., y = Head.Size.cm.3.))+
+  geom_point()+
+  geom_point(aes(x = Predictions, y = Head.Size.cm.3., color = 'red'))+
+  geom_smooth(method = 'lm', se = F)+
+  theme_minimal()+
+  labs(title = 'Head Size Versus Brain Weight with Predictions',
+       x = 'Brain Weight (g)',
+       y = 'Head Size (cm^3)')+
+  theme(legend.position = "none")
+```
+## Calculating MSE  
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+mse <- mean((categorized_dat$Brain.Weight.grams. - categorized_dat$Predictions)^2)
+print(mse)
+```
+
+
+
+
